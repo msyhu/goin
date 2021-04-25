@@ -4,8 +4,6 @@ import (
 	"fmt"
 )
 
-type M map[string]interface{}
-
 func Upbit_ws_client() {
 	uri := "wss://api.upbit.com/websocket/v1"
 
@@ -22,9 +20,6 @@ func Upbit_ws_client() {
 
 	// TODO : websocket 연결해보기
 
-
 	fmt.Println(subscribe_data)
 	fmt.Println(uri)
 }
-
-
