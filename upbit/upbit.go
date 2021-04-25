@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"time"
 )
 
 var addr = flag.String("addr", "api.upbit.com", "upbit websocket")
@@ -37,9 +36,6 @@ func UpbitWsClient() {
 
 	defer c.Close()
 
-	// 왜있는거지?
-	done := make(chan struct{})
-
 	buyChannel := make(chan int)  // int형 채널 생성
 	sellChannel := make(chan int) // int형 채널 생성
 	go buyFunction(buyChannel)
@@ -47,7 +43,7 @@ func UpbitWsClient() {
 
 	// for 문 돌면서 계속 websocket listen
 	go func() {
-		defer close(done)
+
 		for {
 			_, message, err := c.ReadMessage()
 			if err != nil {
@@ -55,7 +51,6 @@ func UpbitWsClient() {
 				return
 			}
 
-			// TODO : 여기서 시세가 indicator 넘는지 끊임없이 확인해주기. 넘으면 대기하고 있는 buy/sell 고루틴으로 flag 전송
 			var jsondata map[string]interface{}
 			json.Unmarshal([]byte(message), &jsondata)
 
@@ -63,8 +58,8 @@ func UpbitWsClient() {
 			if err != nil {
 				fmt.Printf("%T, %v", tradePrice, tradePrice)
 			}
-			log.Println("now? ", tradePrice)
 
+			// TODO: 실제 매수 매매 전략 넣어보기
 			if tradePrice >= 1320 {
 				sellChannel <- tradePrice
 			} else if tradePrice < 1320 {
@@ -74,41 +69,24 @@ func UpbitWsClient() {
 		}
 	}()
 
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-
-	// 계속 반복문 돌면서
 	for {
-		select {
-		// done 이라는 채널에서 값이 나오면 메시지 전송을 중지한다는 뜻?
-		case <-done:
+		err := c.WriteMessage(websocket.TextMessage, []byte(msg))
+		if err != nil {
+			log.Println("write:", err)
 			return
-		case t := <-ticker.C:
-			// Ticker 구조체에 있는 tick 배달되는 채널. 1초에 한번씩 들어온다
-			log.Println("시간? " + t.String())
-			err := c.WriteMessage(websocket.TextMessage, []byte(msg))
-			if err != nil {
-				log.Println("write:", t, err)
-				return
-			}
+		}
+		select {
 		case <-interrupt:
 			// 종료 키보드 입력 들어올 시
 			log.Println("interrupt")
 
 			// Cleanly close the connection by sending a close message and then
 			// waiting (with timeout) for the server to close the connection.
-			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			if err != nil {
-				log.Println("write close:", err)
+			closeErr := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+			if closeErr != nil {
+				log.Println("write close:", closeErr)
 				return
 			}
-
-			// 이게 안정적으로 종료될 수 있도록 약간의 시간을 지연시키는 역할을 하는 듯?
-			select {
-			case <-done:
-			case <-time.After(time.Second):
-			}
-			return
 		}
 	}
 
