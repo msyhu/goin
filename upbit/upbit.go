@@ -1,17 +1,20 @@
 package upbit
 
 import (
+	"encoding/json"
 	"flag"
+	"fmt"
 	"github.com/gorilla/websocket"
 	"log"
 	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"time"
 )
 
 var addr = flag.String("addr", "api.upbit.com", "upbit websocket")
-var msg = "[{\"ticket\":\"test\"},{\"type\":\"ticker\",\"codes\":[\"KRW-BTC\"]}]"
+var msg = "[{\"ticket\":\"test\"},{\"type\":\"ticker\",\"codes\":[\"KRW-XRP\"],\"isOnlyRealtime\":\"true\"}]"
 
 func UpbitWsClient() {
 
@@ -37,6 +40,11 @@ func UpbitWsClient() {
 	// 왜있는거지?
 	done := make(chan struct{})
 
+	buyChannel := make(chan int)  // int형 채널 생성
+	sellChannel := make(chan int) // int형 채널 생성
+	go buyFunction(buyChannel)
+	go sellFunction(sellChannel)
+
 	// for 문 돌면서 계속 websocket listen
 	go func() {
 		defer close(done)
@@ -46,9 +54,23 @@ func UpbitWsClient() {
 				log.Println("read:", err)
 				return
 			}
-			log.Printf("recv: %s", message)
 
 			// TODO : 여기서 시세가 indicator 넘는지 끊임없이 확인해주기. 넘으면 대기하고 있는 buy/sell 고루틴으로 flag 전송
+			var jsondata map[string]interface{}
+			json.Unmarshal([]byte(message), &jsondata)
+
+			tradePrice, err := strconv.Atoi(fmt.Sprint(jsondata["trade_price"]))
+			if err != nil {
+				fmt.Printf("%T, %v", tradePrice, tradePrice)
+			}
+			log.Println("now? ", tradePrice)
+
+			if tradePrice >= 1320 {
+				sellChannel <- tradePrice
+			} else if tradePrice < 1320 {
+				buyChannel <- tradePrice
+			}
+
 		}
 	}()
 
@@ -90,4 +112,18 @@ func UpbitWsClient() {
 		}
 	}
 
+}
+
+func buyFunction(buyChannel chan int) {
+	for {
+		nowPrice := <-buyChannel
+		log.Println("buy! ", nowPrice)
+	}
+}
+
+func sellFunction(sellChannel chan int) {
+	for {
+		nowPrice := <-sellChannel
+		log.Println("sell! ", nowPrice)
+	}
 }

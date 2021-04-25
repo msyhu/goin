@@ -1,0 +1,5 @@
+package etc
+
+func StringToJson() {
+
+}
