@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goin
+  namespace: goin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: goin
+  template:
+    metadata:
+      labels:
+        app: goin
+      annotations:
+        prometheus.io/scrape: "true"
+    spec:
+      containers:
+        - name: goin
+          image: zesow/goin:0.1
+          resources:
+            limits:
+              cpu: 200m
+            requests:
+              cpu: 100m
